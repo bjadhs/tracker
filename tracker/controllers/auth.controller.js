@@ -5,10 +5,18 @@ import jwt from 'jsonwebtoken';
 import {JWT_SECRET, JWT_EXPIRE_IN} from '../config/env.js';
 
 export const signUp = async (req, res, next) => {
-    const session = mongoose.startSession();
+    const {name, email, password} = req.body;
+
+    const session = await mongoose.startSession();
     session.startTransaction();
+
     try {
-        const {name, email, password} = req.body;
+        if (!name || !email || !password) {
+            return res.status(400).json({
+                success: false,
+                error: 'Missing required fields: name, email, and password are required'
+            });
+        }
 
         //Check if the user already exists
         const existingUser = await User.findOne({email});
@@ -21,17 +29,17 @@ export const signUp = async (req, res, next) => {
         const hashedPassword = await bcrypt.hash(password, salt);
 
 
-        const newUsers = new User.create([{name, email, password: hashedPassword}, {session}]);
-
+        const newUsers = new User({name, email, password: hashedPassword});
+        await newUsers.save({session: session});
         //Create jwt token
-        const token = jwt.sign({userId: newUsers[0].id}, JWT_SECRET, {expiresIn: JWT_EXPIRE_IN});
+        const token = jwt.sign({userId: newUsers.id}, JWT_SECRET, {expiresIn: JWT_EXPIRE_IN});
         await session.commitTransaction();
         await session.endSession();
         res.status(201).json({
             success: true,
             message: 'User created successfully',
             data: {token},
-            users: newUsers
+            user: newUsers[0]
         });
 
     } catch (error) {
@@ -44,7 +52,38 @@ export const signUp = async (req, res, next) => {
 
 export const signIn = async (req, res, next) => {
     try {
-        await  res.send('Login user');
+        const {email, password} = req.body;
+        if (!email || !password) {
+            return res.status(400).json({
+                success: false,
+                error: 'Missing required fields: email and password are required'
+            });
+        }
+
+        const user = await User.findOne({email});
+        if (!user) {
+            return res.status(404).json({
+                success: false,
+                error: 'User not found'
+            });
+        }
+
+        const isMatch = await bcrypt.compare(password, user.password);
+        if (!isMatch) {
+            return res.status(400).json({
+                success: false,
+                error: 'Invalid credentials'
+            });
+        }
+
+        //Create jwt token
+        const token = jwt.sign({userId: user.id}, JWT_SECRET, {expiresIn: JWT_EXPIRE_IN});
+        res.status(200).json({
+            success: true,
+            message: 'User signed in successfully',
+            data: {token},
+            user: user
+        });
     } catch (error) {
         next(error);
     }
