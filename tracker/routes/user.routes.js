@@ -1,11 +1,10 @@
 import { Router } from "express";
 import { getUser, getUsers } from "../controllers/user.controller.js";
 import authorize from "../middlewares/auth.middleware.js";
-import arcjetMiddleware from "../middlewares/arcjet.middleware.js";
 const userRouter = Router();
 
 userRouter.get("/", getUsers);
-userRouter.get("/:id", authorize, arcjetMiddleware, getUser);
+userRouter.get("/:id", authorize, getUser);
 userRouter.post("/", (req, res) => {
   res.send({title: 'CREATE new user'});
 });
